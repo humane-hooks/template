@@ -11,4 +11,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: node --test tests/{{hook-name}}.test.js
+      - run: |
+          if [ -f setup.sh ]; then
+            echo "Template not yet scaffolded — skipping tests"
+            exit 0
+          fi
+          node --test tests/*.test.js
