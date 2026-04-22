@@ -2,4 +2,6 @@
 description: Show the current {{hook-name}} state — last event, staleness, snooze.
 ---
 
-<{{hook-name}}-action>status</{{hook-name}}-action>
+Invoke Bash with exactly this command: `node __HOOK_PATH__ --status`
+
+Relay the stdout to the user in one plain-language sentence.

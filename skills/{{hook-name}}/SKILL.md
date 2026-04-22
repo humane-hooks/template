@@ -36,7 +36,7 @@ If ambiguous, ask a one-liner clarifier rather than guess.
 
 ### About `/{{hook-name}}` slash commands
 
-The `/{{hook-name}}`, `/{{hook-name}}-snooze`, and `/{{hook-name}}-status` slash commands exist for the **user** to type themselves. They work via a `UserPromptSubmit` hook that intercepts the action token — a path that doesn't fire when you (the agent) invoke them via the Skill tool. Don't try to route through them; use the Bash CLI above.
+The `/{{hook-name}}`, `/{{hook-name}}-snooze`, and `/{{hook-name}}-status` slash commands are for the **user** to type themselves. Their bodies instruct you (the agent) to invoke the same Bash CLI described above. You don't need to invoke the slash commands yourself — when you detect natural-language acknowledgment, go straight to the Bash CLI.
 
 ## Tone guidance
 
