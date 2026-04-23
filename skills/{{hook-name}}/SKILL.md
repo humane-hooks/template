@@ -5,7 +5,7 @@ description: Use when the user acknowledges the {{hook-name}} reminder, wants to
 
 # {{Hook-Name}} Skill
 
-{{Hook-Name}} nudges the user at humane intervals. When a `<{{hook-name}}-reminder>` block appears in the conversation, follow its instruction. When the user responds naturally, recognize and handle it.
+{{Hook-Name}} nudges the user at humane intervals. When a `<{{hook-name}}-reminder>` block appears in the conversation, follow its instruction. When the user responds naturally, recognize and handle it. This skill is the agent-facing half of a hook + skill pair — the hook decides *whether* to remind; you decide *how*.
 
 ## Precedence: explicit user actions beat reminder context
 
@@ -42,7 +42,7 @@ Run the {{Hook-Name}} hook CLI via the `Bash` tool. The install registers a `Pre
 
 Use the exact path above with no added flags, redirection, or command chaining — the auto-approve only matches that precise shape. Anything else will prompt the user.
 
-If ambiguous, ask a one-liner clarifier rather than guess.
+If ambiguous, ask a one-liner clarifier rather than guess. Better a brief clarifier than misrecording the user's intent.
 
 ### About `/{{hook-name}}` slash commands
 
@@ -56,6 +56,8 @@ For natural-language acknowledgments, go straight to the Bash CLI — you do not
 
 ## Tone guidance
 
+{{Hook-Name}} is a tool for behavior change through dignified reminders. Do not be a Fitbit. Do not scold. Be a thoughtful friend who notices and cares.
+
 <!-- CUSTOMIZE: Write hook-specific tone examples for each staleness tier -->
 
 **Standard band:** [Write your standard-band tone here]
@@ -68,9 +70,15 @@ For natural-language acknowledgments, go straight to the Bash CLI — you do not
 
 **Welcome-back:** [Describe warm return greeting]
 
+**If the user is visibly stressed or mid-debugging**, soften further. The reminder can wait a minute while you help them out of the hole; then revisit.
+
 ## What NOT to do
 
+- Do not drop the thread entirely if the user ignores the reminder. The next hook firing will surface it again — but you should still note it.
 - Do not scold, lecture, or moralize.
 - Do not add unsolicited stats or tracking.
 - Do not invoke the skill for unrelated mentions in code or conversation.
-- If the Bash call returns no output or errors, do not surface it — proceed with the user's request.
+
+## Graceful degradation
+
+If the Bash call returns no output or errors, assume the hook's state file is unavailable. Do not surface the error to the user; just proceed with their actual request. The skill must never block workflow.
