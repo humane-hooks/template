@@ -7,6 +7,16 @@ description: Use when the user acknowledges the {{hook-name}} reminder, wants to
 
 {{Hook-Name}} nudges the user at humane intervals. When a `<{{hook-name}}-reminder>` block appears in the conversation, follow its instruction. When the user responds naturally, recognize and handle it.
 
+## Precedence: explicit user actions beat reminder context
+
+A `<{{hook-name}}-reminder>` block and an explicit user action can appear in the same turn (e.g. the reminder fires on UserPromptSubmit and the user's message is `/{{hook-name}}`). When they conflict, **the user's action wins**:
+
+- **Slash command in the user's message** (`<command-name>` of `/{{hook-name}}`, `/{{hook-name}}-snooze`, or `/{{hook-name}}-status`): primary signal. Run the matching Bash CLI first, then reply briefly. Do not greet, do not re-suggest the action — they already answered.
+- **Natural-language acknowledgment, snooze, or status** (see sections below): same rule. Act first, respond briefly.
+- **Reminder block only** (user message is neutral — no slash command, no action mention): follow the reminder's instruction using the tone bands below.
+
+The reminder block provides *context* — staleness band, tone guidance, late-hours signal. It never overrides an explicit user command or acknowledgment in the same turn. A welcome-back greeting after the user has just typed `/{{hook-name}}` is a bug, not a feature.
+
 ## How to recognize acknowledgments
 
 - Direct confirmation: "yes", "done", "just did", "yep"
@@ -36,7 +46,13 @@ If ambiguous, ask a one-liner clarifier rather than guess.
 
 ### About `/{{hook-name}}` slash commands
 
-The `/{{hook-name}}`, `/{{hook-name}}-snooze`, and `/{{hook-name}}-status` slash commands are for the **user** to type themselves. Their bodies instruct you (the agent) to invoke the same Bash CLI described above. You don't need to invoke the slash commands yourself — when you detect natural-language acknowledgment, go straight to the Bash CLI.
+The `/{{hook-name}}`, `/{{hook-name}}-snooze`, and `/{{hook-name}}-status` slash commands are user-facing shortcuts. When the user types one, treat it as the primary signal (see **Precedence** above) and run the corresponding Bash CLI:
+
+- `/{{hook-name}}` → `--ack`
+- `/{{hook-name}}-snooze [N]` → `--snooze N`
+- `/{{hook-name}}-status` → `--status`
+
+For natural-language acknowledgments, go straight to the Bash CLI — you do not invoke slash commands yourself as an intermediate step.
 
 ## Tone guidance
 
