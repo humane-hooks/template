@@ -178,9 +178,87 @@ function readHookInput() {
 // CLI commands
 // ---------------------------------------------------------------------------
 
+// Handle /{{hook-name}}[-status|-snooze N] inline from UserPromptSubmit input.
+// Returns true if the prompt was a recognized slash command (caller should
+// return without further work). This avoids any Bash tool call (and the
+// permission prompt that comes with it) for the slash-command path.
+function handleSlashCommand(promptText, now) {
+  const trimmed = (promptText || '').trim();
+  // Check longer prefixes first — `/{{hook-name}}` is a prefix of the others.
+  if (trimmed === '/{{hook-name}}-status' || trimmed.startsWith('/{{hook-name}}-status ')) {
+    emitStatusContext(now);
+    return true;
+  }
+  if (trimmed === '/{{hook-name}}-snooze' || trimmed.startsWith('/{{hook-name}}-snooze ')) {
+    const rest = trimmed.slice('/{{hook-name}}-snooze'.length).trim();
+    const parsed = parseInt(rest, 10);
+    const minutes = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SNOOZE_MIN;
+    cmdSnooze([String(minutes)], now);
+    process.stdout.write(formatHookOutput(
+      '<{{hook-name}}-action-result>\n' +
+      'event: snooze\n' +
+      'minutes: ' + minutes + '\n' +
+      'instruction: Reply with one short line confirming the snooze duration. Do not invoke any tools.\n' +
+      '</{{hook-name}}-action-result>\n'
+    ));
+    return true;
+  }
+  if (trimmed === '/{{hook-name}}' || trimmed.startsWith('/{{hook-name}} ')) {
+    cmdAck(now);
+    process.stdout.write(formatHookOutput(
+      '<{{hook-name}}-action-result>\n' +
+      'event: ack\n' +
+      'result: Timer reset.\n' +
+      'instruction: Reply with one short warm line and move on. Do not invoke any tools.\n' +
+      '</{{hook-name}}-action-result>\n'
+    ));
+    return true;
+  }
+  return false;
+}
+
+function emitStatusContext(now) {
+  try {
+    const statePath = resolveStatePath();
+    const state = readState(statePath);
+    if (!state._existed) {
+      process.stdout.write(formatHookOutput(
+        '<{{hook-name}}-action-result>\n' +
+        'event: status\n' +
+        'result: not-initialized\n' +
+        'instruction: Tell the user {{Hook-Name}} is not yet initialized; the next prompt will set it up.\n' +
+        '</{{hook-name}}-action-result>\n'
+      ));
+      return;
+    }
+    const lastMs = new Date(state.last_event_at).getTime();
+    const gapMin = Math.round((now.getTime() - lastMs) / MINUTE_MS);
+    const staleness = classifyStaleness(lastMs, now.getTime());
+    const snoozed = isSnoozed(state.snooze_until, now);
+    process.stdout.write(formatHookOutput(
+      '<{{hook-name}}-action-result>\n' +
+      'event: status\n' +
+      'last_event_min_ago: ' + gapMin + '\n' +
+      'staleness: ' + staleness + '\n' +
+      'snoozed: ' + (snoozed ? ('yes, until ' + state.snooze_until) : 'no') + '\n' +
+      'instruction: Relay this status in one plain-language sentence. Do not invoke any tools.\n' +
+      '</{{hook-name}}-action-result>\n'
+    ));
+  } catch (_err) {}
+}
+
 function cmdCheck(now = new Date()) {
   try {
     if (process.env['{{HOOK_ENV_PREFIX}}_DISABLED'] === '1') return;
+
+    // Slash-command dispatch: handle /{{hook-name}}[-status|-snooze N] directly
+    // in the hook to avoid a Bash tool call (which would trigger a permission
+    // prompt under any `permissions.ask:["Bash"]` setting).
+    const input = readHookInput();
+    if (input && typeof input.prompt === 'string') {
+      const handled = handleSlashCommand(input.prompt, now);
+      if (handled) return;
+    }
 
     const statePath = resolveStatePath();
     const state = readState(statePath);
@@ -266,41 +344,6 @@ function cmdSnooze(args = [], now = new Date()) {
   } catch (_err) {}
 }
 
-// ---------------------------------------------------------------------------
-// PreToolUse approval: auto-approve Bash calls to this hook's own CLI
-// (--ack / --snooze [N] / --status). Keeps the slash-command and
-// natural-language skill paths permission-prompt-free without requiring a
-// brittle settings.json allowlist.
-// ---------------------------------------------------------------------------
-
-function approveBashCommand(command, hookPath = __filename) {
-  if (typeof command !== 'string') return false;
-  const trimmed = command.trim();
-  const escaped = hookPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pathAlt = `(?:"${escaped}"|'${escaped}'|${escaped})`;
-  const flagAlt = '(?:--ack|--status|--snooze(?:\\s+\\d+)?)';
-  const re = new RegExp(`^node\\s+${pathAlt}\\s+${flagAlt}\\s*$`);
-  return re.test(trimmed);
-}
-
-function cmdPretool() {
-  try {
-    const input = readHookInput();
-    if (!input || input.tool_name !== 'Bash') return;
-    const command = input.tool_input && input.tool_input.command;
-    if (!approveBashCommand(command)) return;
-    process.stdout.write(JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: 'allow',
-        permissionDecisionReason: '{{hook-name}} self-approve',
-      },
-    }) + '\n');
-  } catch (_err) {
-    // Never block tool calls on this hook's own bugs — stay silent on error.
-  }
-}
-
 function cmdStatus(now = new Date()) {
   try {
     const statePath = resolveStatePath();
@@ -331,8 +374,7 @@ function main(argv = process.argv) {
   else if (cmd === '--ack') cmdAck();
   else if (cmd === '--snooze') cmdSnooze(argv.slice(3));
   else if (cmd === '--status') cmdStatus();
-  else if (cmd === '--pretool') cmdPretool();
-  else process.stdout.write('Usage: {{hook-name}}.js --check | --ack | --snooze [minutes] | --status | --pretool\n');
+  else process.stdout.write('Usage: {{hook-name}}.js --check | --ack | --snooze [minutes] | --status\n');
 }
 
 if (require.main === module) main(process.argv);
@@ -341,6 +383,5 @@ module.exports = {
   resolveStatePath, readState, writeState,
   classifyStaleness, isSnoozed, shouldSuppressStandardRefire, isLateHours,
   buildReminderText, formatHookOutput, cmdCheck,
-  cmdAck, cmdSnooze, cmdStatus, cmdPretool, main,
-  approveBashCommand,
+  cmdAck, cmdSnooze, cmdStatus, main,
 };

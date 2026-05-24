@@ -34,13 +34,21 @@ These count as status queries:
 
 ## How to act
 
-Run the {{Hook-Name}} hook CLI via the `Bash` tool. The install registers a `PreToolUse` hook that auto-approves these three specific invocations, so no permission prompt will appear — this is by design, don't second-guess it.
+There are two paths, depending on how the user invoked the action.
 
-- **Acknowledgment** → `Bash(node __HOOK_PATH__ --ack)`. Respond briefly and warmly.
-- **Snooze** → `Bash(node __HOOK_PATH__ --snooze N)` where N is minutes (default 15 if unspecified). Respond briefly.
+### Path 1 — Slash command (`/{{hook-name}}`, `/{{hook-name}}-snooze [N]`, `/{{hook-name}}-status`)
+
+The {{Hook-Name}} UserPromptSubmit hook handles these directly and emits a `<{{hook-name}}-action-result>` block into your context. **Do not invoke any tools.** Read the result block, then reply in one short line. The block contains an `instruction:` field telling you exactly how to reply.
+
+### Path 2 — Natural-language acknowledgment, snooze, or status
+
+For phrases like "yes done," "snooze 20," or "when did I last...?", run the Bash CLI directly:
+
+- **Acknowledgment** → `Bash(node __HOOK_PATH__ --ack)`. Respond briefly.
+- **Snooze** → `Bash(node __HOOK_PATH__ --snooze N)`. Respond briefly.
 - **Status** → `Bash(node __HOOK_PATH__ --status)`. Relay the stdout in plain language.
 
-Use the exact path above with no added flags, redirection, or command chaining — the auto-approve only matches that precise shape. Anything else will prompt the user.
+The install adds matching `permissions.allow` entries, but if the user's settings include a broader `permissions.ask:["Bash"]` rule, those calls will still prompt (Claude Code evaluates `ask` before `allow`). If you see repeated prompts, nudge the user toward slash commands instead.
 
 If ambiguous, ask a one-liner clarifier rather than guess. Better a brief clarifier than misrecording the user's intent.
 
